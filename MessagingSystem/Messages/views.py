@@ -1,13 +1,5 @@
-from rest_framework import viewsets
 from rest_framework.decorators import api_view
 from .service import *
-from .serializers import SystemUserSerializer
-from .models import SystemUser
-
-
-class SystemUsersViewSet(viewsets.ModelViewSet):
-    serializer_class = SystemUserSerializer
-    queryset = SystemUser.objects.all()
 
 
 @api_view(['GET', 'POST'])
@@ -15,15 +7,15 @@ def users(request):
     if request.method == 'GET':
         return get_all_users()
     else:  # 'POST'
-        return add_user(request)
+        return add_user(request.POST)
 
 
-@api_view(['GET', 'PUT']) # consider add DELETE
-def specific_user(request):
+@api_view(['GET', 'PUT'])  # consider add DELETE
+def specific_user(request, user_id):
     if request.method == 'GET':
-        return get_user(request)
+        return get_user(user_id)
     else:  # 'PUT'
-        return update_user(request)
+        return update_user(request.POST, user_id)
 
 
 @api_view(['POST'])

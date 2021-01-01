@@ -3,7 +3,7 @@ from datetime import date
 
 
 class SystemUser(models.Model):
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=32)
 
     class Meta:
         ordering = ['id']
