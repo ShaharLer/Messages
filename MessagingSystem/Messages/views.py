@@ -18,9 +18,12 @@ def specific_user(request, user_id):
         return update_user(request.POST, user_id)
 
 
-@api_view(['POST'])
+@api_view(['GET', 'POST'])
 def messages(request):
-    return add_message(request)
+    if request.method == 'GET':
+        return get_all_messages()
+    else:  # POST
+        return add_message(request.POST)
 
 
 @api_view(['GET', 'DELETE'])
@@ -28,7 +31,7 @@ def specific_message(request, message_id):
     if request.method == 'GET':
         return get_message(message_id)
     else:  # 'DELETE'
-        return delete_message(request, message_id)
+        return delete_message(request.POST, message_id)
 
 
 @api_view(['GET'])

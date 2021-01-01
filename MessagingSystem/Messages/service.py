@@ -1,12 +1,26 @@
 from rest_framework.response import Response
 from rest_framework import status
 from .serializers import *
-from .models import SystemUser
+from .models import SystemUser, Message
 from threading import Lock
 
 lock = Lock()
 NAME_KEY = 'name'
-USER_ID_NOT_FOUND = 'There is no user with id={0}'
+SENDER_KEY = 'sender'
+RECEIVER_KEY = 'receiver'
+SUBJECT_KEY = 'subject'
+MESSAGE_KEY = 'message'
+USER_KEY = 'user'
+USER_NOT_FOUND = 'There is no user with id={0}'
+MESSAGE_NOT_FOUND = 'There is no message with id={0}'
+
+
+class UserNotFoundException(Exception):
+    pass
+
+
+class MessageNotFoundException(Exception):
+    pass
 
 
 def get_all_users():
@@ -20,8 +34,9 @@ def get_all_users():
 
 
 def add_user(data):
-    if not is_user_params_valid(data):
-        return get_invalid_user_name_response()
+    response = validate_user_params(data)
+    if response:
+        return response
 
     try:
         lock.acquire()
@@ -37,10 +52,10 @@ def add_user(data):
 def get_user(user_id):
     try:
         lock.acquire()
-        user = SystemUser.objects.get(id=user_id)
+        user = get_user_object(user_id)
         return get_response_with_object(SystemUserSerializer(user).data)
-    except SystemUser.DoesNotExist as e:
-        return get_response_with_message(USER_ID_NOT_FOUND.format(user_id), status.HTTP_500_INTERNAL_SERVER_ERROR)
+    except SystemUser.DoesNotExist:
+        return get_response_with_message(USER_NOT_FOUND.format(user_id), status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as e:
         return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
     finally:
@@ -48,34 +63,97 @@ def get_user(user_id):
 
 
 def update_user(data, user_id):
-    if not is_user_params_valid(data):
-        return get_invalid_user_name_response()
+    response = validate_user_params(data)
+    if response:
+        return response
 
     try:
         lock.acquire()
-        user = SystemUser.objects.get(id=user_id)
+        user = get_user_object(user_id)
         user.name = data[NAME_KEY]
         user.save()
         return get_response_with_object(SystemUserSerializer(user).data)
-    except SystemUser.DoesNotExist as e:
-        return get_response_with_message(USER_ID_NOT_FOUND.format(user_id), status.HTTP_500_INTERNAL_SERVER_ERROR)
+    except SystemUser.DoesNotExist:
+        return get_response_with_message(USER_NOT_FOUND.format(user_id), status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as e:
         return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
     finally:
         lock.release()
 
 
-def add_message(request):
-    # Response("all good", status=status.HTTP_200_OK)
-    pass
+def add_message(data):
+    response = validate_add_message_params(data)
+    if response:
+        return response
+
+    try:
+        lock.acquire()
+        sender = get_user_object(data[SENDER_KEY])
+        receiver = get_user_object(data[RECEIVER_KEY])
+        subject = data[SUBJECT_KEY]
+        message_content = data[MESSAGE_KEY]
+        message = Message.objects.create(sender=sender, receiver=receiver, subject=subject, message=message_content)
+        message.save()
+        return get_response_with_object(MessageSerializer(message).data)
+    except Exception as e:
+        return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
+    finally:
+        lock.release()
+
+
+def get_user_object(user_id):
+    try:
+        return SystemUser.objects.get(id=user_id)
+    except SystemUser.DoesNotExist:
+        raise UserNotFoundException(USER_NOT_FOUND.format(user_id))
+
+
+def get_all_messages():
+    try:
+        lock.acquire()
+        return get_response_with_object(MessageSerializer(Message.objects.all(), many=True).data)
+    except Exception as e:
+        return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
+    finally:
+        lock.release()
 
 
 def get_message(message_id):
-    pass
+    try:
+        lock.acquire()
+        message = get_message_object(message_id)
+        return get_response_with_object(MessageSerializer(message).data)
+    except Exception as e:
+        return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
+    finally:
+        lock.release()
 
 
-def delete_message(request, message_id):
-    pass
+def delete_message(data, message_id):
+    response = validate_delete_message_params(data)
+    if response:
+        return response
+
+    try:
+        lock.acquire()
+        message = get_message_object(message_id)
+        user = get_user_object(data[USER_KEY])
+        if user != message.sender and user != message.receiver:
+            return get_response_with_message('Only the sender or the receiver of the message can delete it', status.HTTP_400_BAD_REQUEST)
+        response = get_response_with_object(MessageSerializer(message).data)
+        message.delete()
+        return response
+    except Exception as e:
+        return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
+    finally:
+        lock.release()
+
+
+def get_message_object(message_id):
+    try:
+        return Message.objects.get(id=message_id)
+    except Message.DoesNotExist:
+        raise MessageNotFoundException(MESSAGE_NOT_FOUND.format(message_id))
 
 
 def get_all_user_messages(user_id):
@@ -94,17 +172,35 @@ def read_message(message_id):
     pass
 
 
-def is_user_params_valid(data):
-    return NAME_KEY in data and len(data[NAME_KEY]) > 0
+def validate_user_params(data):
+    if NAME_KEY not in data or len(data[NAME_KEY]) == 0:
+        return get_response_with_message(f'User must have a non-empty name', status.HTTP_400_BAD_REQUEST)
+
+    if data[NAME_KEY].isnumeric():
+        return get_response_with_message(f'The name of the user cannot be a number', status.HTTP_400_BAD_REQUEST)
+
+    return None
 
 
-def get_invalid_user_name_response():
-    return get_response_with_message(f'User must have a non-empty name', status.HTTP_400_BAD_REQUEST)
+def validate_add_message_params(data):
+    if SENDER_KEY not in data or len(data[SENDER_KEY]) == 0:
+        return get_response_with_message(f'Message request must have a non-empty sender id', status.HTTP_400_BAD_REQUEST)
+
+    if RECEIVER_KEY not in data or len(data[RECEIVER_KEY]) == 0:
+        return get_response_with_message(f'Message request must have a non-empty receiver id', status.HTTP_400_BAD_REQUEST)
+
+    if SUBJECT_KEY not in data or len(data[SUBJECT_KEY]) == 0:
+        return get_response_with_message(f'Message request must have a non-empty subject', status.HTTP_400_BAD_REQUEST)
+
+    if MESSAGE_KEY not in data or len(data[MESSAGE_KEY]) == 0:
+        return get_response_with_message(f'Message request must have a non-empty message', status.HTTP_400_BAD_REQUEST)
+
+    return None
 
 
-def get_empty_user_name_response():
-    class_name = SystemUser.__name__.title()
-    return get_response_with_message(f'{class_name} must have a non-empty name', status.HTTP_400_BAD_REQUEST)
+def validate_delete_message_params(data):
+    if USER_KEY not in data or len(data[USER_KEY]) == 0:
+        return get_response_with_message(f'Delete message request must have a non-empty user parameter', status.HTTP_400_BAD_REQUEST)
 
 
 def get_response_with_object(body):
@@ -113,3 +209,4 @@ def get_response_with_object(body):
 
 def get_response_with_message(message, status_code):
     return Response({"detail": message}, status_code)
+

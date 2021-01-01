@@ -17,7 +17,7 @@ class Message(models.Model):
     receiver = models.ForeignKey(SystemUser, related_name='receiver', blank=False, on_delete=models.CASCADE)
     subject = models.CharField(max_length=32, blank=False)
     message = models.TextField(max_length=256, blank=False)
-    created = models.DateField('Date created', default=date.today())
+    created = models.DateField('Date created', default=date.today)
     is_read = models.BooleanField(default=False)
 
     def __str__(self):

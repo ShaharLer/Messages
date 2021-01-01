@@ -10,5 +10,5 @@ class SystemUserSerializer(serializers.ModelSerializer):
 
 class MessageSerializer(serializers.ModelSerializer):
     class Meta:
-        model = models.SystemUser
+        model = models.Message
         fields = ('id', 'sender', 'receiver', 'subject', 'message', 'created', 'is_read')
