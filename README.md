@@ -53,26 +53,26 @@ The following HTTP methods are supported:
 
   * **Target**: Fetch all users
   
-```GET``` **/messages/{message_id}**
+```GET``` **/messages/{message_id}/**
 
   * **Target**: Fetch the message with the given id
   
-```DELETE``` **/messages/:message_id**
+```DELETE``` **/messages/{message_id}/**
 
   * **Target**: Delete a message with the given id
   
   * **Usage**: Requires body request with the following fields: 
     - **user** (id of either the sender or the receiver of the message)
     
-```GET``` **/all-messages/{user_id}**
+```GET``` **/all-messages/{user_id}/**
 
   * **Target**: Returns all the messages that were sent for the user with the given id
 
-```GET``` **/unread-messages/{user_id}**
+```GET``` **/unread-messages/{user_id}/**
 
   * **Target**: Returns all the unread messages that were sent for the user with the given id
 
-```GET``` **/read-messages/{message_id}**
+```GET``` **/read-messages/{message_id}/**
 
   * **Target**: Read the message with the given id (mark it as read in the DB)
 
