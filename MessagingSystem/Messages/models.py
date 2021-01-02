@@ -5,6 +5,9 @@ from datetime import date
 class SystemUser(models.Model):
     name = models.CharField(max_length=32)
 
+    class Meta:
+        ordering = ['id']
+
     def __str__(self):
         return self.name
 
@@ -16,6 +19,9 @@ class Message(models.Model):
     message = models.TextField(max_length=256, blank=False)
     created = models.DateField('Date created', default=date.today)
     is_read = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['id']
 
     def __str__(self):
         return self.subject
