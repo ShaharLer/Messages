@@ -12,7 +12,7 @@ The API offers the following APIs:
 
 #### The following rules are applied to the API:
 * A user must be first created
-* Each message must have a sender,a receiver, a non-empty subject and a non-empty message content
+* Each message must have a sender, a receiver, a non-empty subject and a non-empty message content
 * A message can be deleted only by the sender or the receiver
 
 ## HTTP requests
