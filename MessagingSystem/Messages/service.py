@@ -24,43 +24,54 @@ class MessageNotFoundException(Exception):
     pass
 
 
-def get_all_users():
+def get_objects(func):
     try:
         lock.acquire()
-        return get_response_with_object(SystemUserSerializer(SystemUser.objects.all(), many=True).data)
+        return func()
     except Exception as e:
         return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
     finally:
         lock.release()
 
 
-def add_user(data):
-    response = validate_user_params(data)
+def add_object(add_func, validate_func, data):
+    response = validate_func(data)
     if response:
         return response
 
     try:
         lock.acquire()
-        user = SystemUser.objects.create(name=data[NAME_KEY])
-        user.save()
-        return get_response_with_object(SystemUserSerializer(user).data)
+        return add_func(data)
     except Exception as e:
         return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
     finally:
         lock.release()
+
+
+def get_specific_objects(func, obj_id):
+    try:
+        lock.acquire()
+        return func(obj_id)
+    except Exception as e:
+        return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
+    finally:
+        lock.release()
+
+
+def get_all_users():
+    all_users = SystemUser.objects.all()
+    return get_response_with_object(SystemUserSerializer(all_users, many=True).data)
+
+
+def add_user(data):
+    user = SystemUser.objects.create(name=data[NAME_KEY])
+    user.save()
+    return get_response_with_object(SystemUserSerializer(user).data)
 
 
 def get_user(user_id):
-    try:
-        lock.acquire()
-        user = get_user_object(user_id)
-        return get_response_with_object(SystemUserSerializer(user).data)
-    except SystemUser.DoesNotExist:
-        return get_response_with_message(USER_NOT_FOUND.format(user_id), status.HTTP_500_INTERNAL_SERVER_ERROR)
-    except Exception as e:
-        return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
-    finally:
-        lock.release()
+    user = get_user_object(user_id)
+    return get_response_with_object(SystemUserSerializer(user).data)
 
 
 def update_user(data, user_id):
@@ -74,8 +85,6 @@ def update_user(data, user_id):
         user.name = data[NAME_KEY]
         user.save()
         return get_response_with_object(SystemUserSerializer(user).data)
-    except SystemUser.DoesNotExist:
-        return get_response_with_message(USER_NOT_FOUND.format(user_id), status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as e:
         return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
     finally:
@@ -83,45 +92,22 @@ def update_user(data, user_id):
 
 
 def add_message(data):
-    response = validate_add_message_params(data)
-    if response:
-        return response
-
-    try:
-        lock.acquire()
-        sender = get_user_object(data[SENDER_KEY])
-        receiver = get_user_object(data[RECEIVER_KEY])
-        subject = data[SUBJECT_KEY]
-        message_content = data[MESSAGE_KEY]
-        message = Message.objects.create(sender=sender, receiver=receiver, subject=subject, message=message_content)
-        message.save()
-        return get_response_with_object(MessageSerializer(message).data)
-    except Exception as e:
-        return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
-    finally:
-        lock.release()
+    message = Message.objects.create(sender=get_user_object(data[SENDER_KEY]),
+                                     receiver=get_user_object(data[RECEIVER_KEY]),
+                                     subject=data[SUBJECT_KEY],
+                                     message=data[MESSAGE_KEY])
+    message.save()
+    return get_response_with_object(MessageSerializer(message).data)
 
 
 def get_all_messages():
-    try:
-        lock.acquire()
-        all_messages = Message.objects.all()
-        return get_response_with_object(MessageSerializer(all_messages, many=True).data)
-    except Exception as e:
-        return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
-    finally:
-        lock.release()
+    all_messages = Message.objects.all()
+    return get_response_with_object(MessageSerializer(all_messages, many=True).data)
 
 
 def get_message(message_id):
-    try:
-        lock.acquire()
-        message = get_message_object(message_id)
-        return get_response_with_object(MessageSerializer(message).data)
-    except Exception as e:
-        return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
-    finally:
-        lock.release()
+    message = get_message_object(message_id)
+    return get_response_with_object(MessageSerializer(message).data)
 
 
 def delete_message(data, message_id):
@@ -135,7 +121,7 @@ def delete_message(data, message_id):
         user = get_user_object(data[USER_KEY])
         if user != message.sender and user != message.receiver:
             response = get_response_with_message('Only the sender or the receiver of the message can delete it',
-                                             status.HTTP_400_BAD_REQUEST)
+                                                 status.HTTP_400_BAD_REQUEST)
         else:
             response = get_response_with_object(MessageSerializer(message).data)
             message.delete()
@@ -155,31 +141,19 @@ def get_all_user_unread_messages(user_id):
 
 
 def get_user_messages(user_id, only_unread_messages):
-    try:
-        lock.acquire()
-        user = get_user_object(user_id)
-        if only_unread_messages:
-            user_messages = Message.objects.filter(Q(receiver=user) & Q(is_read=False))
-        else:
-            user_messages = Message.objects.filter(receiver=user)
-        return get_response_with_object(MessageSerializer(user_messages, many=True).data)
-    except Exception as e:
-        return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
-    finally:
-        lock.release()
+    user = get_user_object(user_id)
+    if only_unread_messages:
+        user_messages = Message.objects.filter(Q(receiver=user) & Q(is_read=False))
+    else:
+        user_messages = Message.objects.filter(receiver=user)
+    return get_response_with_object(MessageSerializer(user_messages, many=True).data)
 
 
 def read_user_message(message_id):
-    try:
-        lock.acquire()
-        message = get_message_object(message_id)
-        message.is_read = True
-        message.save()
-        return get_response_with_object(MessageSerializer(message).data)
-    except Exception as e:
-        return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
-    finally:
-        lock.release()
+    message = get_message_object(message_id)
+    message.is_read = True
+    message.save()
+    return get_response_with_object(MessageSerializer(message).data)
 
 
 def get_user_object(user_id):
