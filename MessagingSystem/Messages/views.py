@@ -10,7 +10,7 @@ def users(request):
         return add_user(request.POST)
 
 
-@api_view(['GET', 'PUT'])  # consider add DELETE
+@api_view(['GET', 'PUT'])
 def specific_user(request, user_id):
     if request.method == 'GET':
         return get_user(user_id)
