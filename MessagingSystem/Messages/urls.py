@@ -8,5 +8,5 @@ urlpatterns = [
     path('messages/<int:message_id>/', views.specific_message),
     path('all-messages/<int:user_id>/', views.all_user_messages),
     path('unread-messages/<int:user_id>/', views.all_user_unread_messages),
-    # path('read-message/<int:message_id>/', views.read_messages)
+    path('read-messages/<int:message_id>/', views.read_message)
 ]

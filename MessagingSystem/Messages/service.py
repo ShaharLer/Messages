@@ -169,8 +169,17 @@ def get_user_messages(user_id, only_unread_messages):
         lock.release()
 
 
-def read_message(message_id):
-    pass
+def read_user_message(message_id):
+    try:
+        lock.acquire()
+        message = get_message_object(message_id)
+        message.is_read = True
+        message.save()
+        return get_response_with_object(MessageSerializer(message).data)
+    except Exception as e:
+        return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
+    finally:
+        lock.release()
 
 
 def get_user_object(user_id):

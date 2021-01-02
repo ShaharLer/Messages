@@ -45,6 +45,6 @@ def all_user_unread_messages(request, user_id):
 
 
 @api_view(['GET'])
-def read_messages(request, message_id):
-    return read_message(message_id)
+def read_message(request, message_id):
+    return read_user_message(message_id)
 
