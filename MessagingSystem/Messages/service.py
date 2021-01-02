@@ -2,6 +2,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .serializers import *
 from .models import SystemUser, Message
+from django.db.models import Q
 from threading import Lock
 
 lock = Lock()
@@ -101,17 +102,11 @@ def add_message(data):
         lock.release()
 
 
-def get_user_object(user_id):
-    try:
-        return SystemUser.objects.get(id=user_id)
-    except SystemUser.DoesNotExist:
-        raise UserNotFoundException(USER_NOT_FOUND.format(user_id))
-
-
 def get_all_messages():
     try:
         lock.acquire()
-        return get_response_with_object(MessageSerializer(Message.objects.all(), many=True).data)
+        all_messages = Message.objects.all()
+        return get_response_with_object(MessageSerializer(all_messages, many=True).data)
     except Exception as e:
         return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
     finally:
@@ -139,9 +134,11 @@ def delete_message(data, message_id):
         message = get_message_object(message_id)
         user = get_user_object(data[USER_KEY])
         if user != message.sender and user != message.receiver:
-            return get_response_with_message('Only the sender or the receiver of the message can delete it', status.HTTP_400_BAD_REQUEST)
-        response = get_response_with_object(MessageSerializer(message).data)
-        message.delete()
+            response = get_response_with_message('Only the sender or the receiver of the message can delete it',
+                                             status.HTTP_400_BAD_REQUEST)
+        else:
+            response = get_response_with_object(MessageSerializer(message).data)
+            message.delete()
         return response
     except Exception as e:
         return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -149,27 +146,45 @@ def delete_message(data, message_id):
         lock.release()
 
 
+def get_all_user_messages(user_id):
+    return get_user_messages(user_id, only_unread_messages=False)
+
+
+def get_all_user_unread_messages(user_id):
+    return get_user_messages(user_id, only_unread_messages=True)
+
+
+def get_user_messages(user_id, only_unread_messages):
+    try:
+        lock.acquire()
+        user = get_user_object(user_id)
+        if only_unread_messages:
+            user_messages = Message.objects.filter(Q(receiver=user) & Q(is_read=False))
+        else:
+            user_messages = Message.objects.filter(receiver=user)
+        return get_response_with_object(MessageSerializer(user_messages, many=True).data)
+    except Exception as e:
+        return get_response_with_message(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
+    finally:
+        lock.release()
+
+
+def read_message(message_id):
+    pass
+
+
+def get_user_object(user_id):
+    try:
+        return SystemUser.objects.get(id=user_id)
+    except SystemUser.DoesNotExist:
+        raise UserNotFoundException(USER_NOT_FOUND.format(user_id))
+
+
 def get_message_object(message_id):
     try:
         return Message.objects.get(id=message_id)
     except Message.DoesNotExist:
         raise MessageNotFoundException(MESSAGE_NOT_FOUND.format(message_id))
-
-
-def get_all_user_messages(user_id):
-    # user = SystemUser.objects.filter(id=user_id)
-    # if user is None:
-    #     return Response({"Did not find user"}, status.HTTP_400_BAD_REQUEST)
-    # return Response(UserMessagesSerializer(all_messages).data, status.HTTP_200_OK)
-    pass
-
-
-def get_all_user_unread_messages(user_id):
-    pass
-
-
-def read_message(message_id):
-    pass
 
 
 def validate_user_params(data):
